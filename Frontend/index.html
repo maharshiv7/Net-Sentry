@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Net-Sentry | Full Recon Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { background-color: #020617; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-2px); border-color: #3b82f6; }
+        .progress-fill { transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 4px; }
+        
+        /* Modal Animation */
+        #portScanModal { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease; }
+    </style>
+</head>
+<body class="min-h-screen p-6 md:p-10 flex items-center justify-center relative">
+
+    <div class="max-w-5xl w-full space-y-8 relative z-10">
+        
+        <div class="flex flex-col md:flex-row justify-between items-end border-b border-slate-800 pb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-tight">NET-SENTRY <span class="text-blue-500">v3.0</span></h1>
+                <p class="text-slate-400 text-sm mt-1">Client & Network Reconnaissance Toolkit</p>
+            </div>
+            <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                <button onclick="downloadReport()" id="exportBtn" class="hidden w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+                    <i class="fa-solid fa-file-export mr-2"></i>EXPORT REPORT
+                </button>
+                <button onclick="runFullAnalysis()" id="scanBtn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg font-bold transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+                    <i class="fa-solid fa-radar mr-2"></i>INITIATE SCAN
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 glass rounded-2xl p-8 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <i class="fa-solid fa-globe text-9xl"></i>
+                </div>
+                
+                <div class="relative z-10">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div id="statusDot" class="w-2 h-2 rounded-full bg-red-500"></div>
+                        <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Public Identity</p>
+                    </div>
+                    <h2 id="ipAddress" class="text-5xl font-mono font-bold text-white mb-6 tracking-tight">---.---.---.---</h2>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        <div>
+                            <span class="text-slate-500 text-xs block uppercase">ISP / Organization</span>
+                            <span id="ispName" class="text-lg font-medium text-blue-400 truncate block">Unknown</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 text-xs block uppercase">Geo-Location</span>
+                            <span id="location" class="text-lg font-medium text-white truncate block">Unknown</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 text-xs block uppercase">Network Latency</span>
+                            <span id="latency" class="text-lg font-medium text-emerald-400">--- ms</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-white mb-1"><i class="fa-solid fa-user-shield mr-2 text-slate-400"></i>Privacy Score</h3>
+                    <p class="text-xs text-slate-500">Based on digital footprint visibility.</p>
+                </div>
+                
+                <div class="my-6 text-center">
+                    <span id="riskLevel" class="text-4xl font-bold text-slate-600">?</span>
+                    <p id="riskText" class="text-xs text-slate-400 mt-2">Run scan to calculate</p>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div id="riskBar" class="h-full w-0 bg-slate-600 progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass rounded-xl p-6 border border-slate-800">
+            <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-800 pb-2">Device Fingerprinting</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <span class="text-slate-500 block text-xs">OS Platform</span>
+                    <span id="osPlatform" class="text-white font-mono">---</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block text-xs">CPU Threads</span>
+                    <span id="hardwareConc" class="text-white font-mono">---</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block text-xs">Screen Resolution</span>
+                    <span id="screenRes" class="text-white font-mono">---</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block text-xs">Tracking Cookies</span>
+                    <span id="cookiesStatus" class="text-white font-mono">---</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="glass rounded-xl p-8 border-t-4 border-t-blue-500">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Password Entropy</h3>
+                        <p class="text-slate-400 text-xs mt-1">Mathematical strength assessment</p>
+                    </div>
+                    <i class="fa-solid fa-key text-blue-500/20 text-4xl"></i>
+                </div>
+
+                <input type="text" id="passInput" oninput="analyzePassword()" 
+                    placeholder="Type to test strength..." 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors mb-4 placeholder-slate-600 font-mono">
+
+                <div class="space-y-4">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Entropy Bits: <span id="bitsDisplay" class="text-white font-bold">0</span></span>
+                        <span class="text-slate-400">Crack Time: <span id="crackTimeDisplay" class="text-white font-bold">Instantly</span></span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-1.5">
+                        <div id="strengthBar" class="h-full w-0 bg-red-500 rounded-full transition-all duration-300"></div>
+                    </div>
+                    <p id="strengthVerdict" class="text-center text-sm font-semibold text-slate-500">Waiting for input...</p>
+                </div>
+            </div>
+
+            <div class="glass rounded-xl p-8 border-t-4 border-t-purple-500">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Connection Leaks</h3>
+                        <p class="text-slate-400 text-xs mt-1">What headers are you sending?</p>
+                    </div>
+                    <i class="fa-solid fa-network-wired text-purple-500/20 text-4xl"></i>
+                </div>
+                
+                <div class="space-y-3 font-mono text-xs">
+                    <div class="flex justify-between p-2 bg-slate-900/50 rounded">
+                        <span class="text-slate-500">User-Agent</span>
+                        <span class="text-purple-300 text-right max-w-[200px] truncate" id="uaString">---</span>
+                    </div>
+                    <div class="flex justify-between p-2 bg-slate-900/50 rounded">
+                        <span class="text-slate-500">Language</span>
+                        <span class="text-purple-300" id="langString">---</span>
+                    </div>
+                    <div class="flex justify-between p-2 bg-slate-900/50 rounded">
+                        <span class="text-slate-500">Referrer Policy</span>
+                        <span class="text-purple-300">strict-origin-when-cross-origin</span>
+                    </div>
+                    <div class="flex justify-between p-2 bg-slate-900/50 rounded">
+                        <span class="text-slate-500">Do Not Track</span>
+                        <span class="text-purple-300" id="dntStatus">Unknown</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass rounded-xl p-8 border-t-4 border-t-emerald-500">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Local Wi-Fi Network</h3>
+                    <p id="localScanStatus" class="text-slate-400 text-xs mt-1">Waiting to scan...</p>
+                </div>
+                <i class="fa-solid fa-router text-emerald-500/20 text-4xl"></i>
+            </div>
+            
+            <div class="grid grid-cols-12 px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-800/30 rounded-t-lg">
+                <div class="col-span-4">Device Identity</div>
+                <div class="col-span-5">MAC Address</div>
+                <div class="col-span-3 text-right">Status / Action</div>
+            </div>
+
+            <div id="localDevicesList" class="space-y-1 max-h-60 overflow-y-auto mt-2 custom-scrollbar pr-2">
+                <div class="text-center text-slate-500 text-sm py-6 border border-dashed border-slate-700 rounded-lg">
+                    Click "INITIATE SCAN" to find devices.<br>
+                    <span class="text-xs text-red-400 mt-2 block">* Requires Python Backend (app.py) to be running *</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass rounded-xl p-8 border-t-4 border-t-amber-500 mt-6 mb-8">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white">WebRTC Stealth Checker</h3>
+                    <p class="text-slate-400 text-xs mt-1">Detect underlying IP leaks bypassing VPNs via WebRTC protocols.</p>
+                </div>
+                <i class="fa-solid fa-user-ninja text-amber-500/20 text-4xl"></i>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <button onclick="checkWebRTCLeak()" id="webrtcBtn" class="w-full md:w-auto bg-amber-600 hover:bg-amber-500 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg shadow-amber-500/20 whitespace-nowrap">
+                    <i class="fa-solid fa-mask mr-2"></i> TEST FOR LEAKS
+                </button>
+            </div>
+
+            <div id="webrtcResults" class="mt-4 hidden space-y-2">
+                </div>
+        </div>
+
+        <div class="glass rounded-xl p-8 border-t-4 border-t-indigo-500 mt-6 mb-8">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Target Domain Recon</h3>
+                    <p class="text-slate-400 text-xs mt-1">Extract hidden DNS records, mail exchanges, and text verifications.</p>
+                </div>
+                <i class="fa-solid fa-crosshairs text-indigo-500/20 text-4xl"></i>
+            </div>
+            
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <input type="text" id="targetDomain" placeholder="Enter target domain (e.g., google.com)" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors font-mono">
+                <button onclick="runDNSRecon()" id="dnsBtn" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg shadow-indigo-500/20 whitespace-nowrap">
+                    <i class="fa-solid fa-satellite-dish mr-2"></i> RECON
+                </button>
+            </div>
+
+            <div id="dnsResults" class="mt-6 hidden space-y-3">
+                </div>
+        </div>
+
+    </div>
+
+    <div id="portScanModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none">
+        <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-lg scale-95 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-4 mb-4">
+                <h3 class="text-lg font-bold text-white font-mono"><i class="fa-solid fa-terminal text-blue-500 mr-2"></i>PORT SCANNER</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition-colors"><i class="fa-solid fa-times text-xl"></i></button>
+            </div>
+            
+            <div class="mb-4">
+                <span class="text-slate-500 text-xs uppercase">Target IP:</span>
+                <span id="modalTargetIp" class="text-blue-400 font-mono font-bold ml-2">---</span>
+            </div>
+
+            <div id="modalTerminal" class="bg-black border border-slate-800 rounded p-4 font-mono text-xs h-64 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                <div class="text-slate-500">> Initiating deep scan...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function runFullAnalysis() {
+            const btn = document.getElementById('scanBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> SCANNING...`;
+            
+            document.getElementById('ipAddress').classList.add('animate-pulse');
+            
+            try {
+                // Public Data
+                const start = performance.now();
+                await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors' }); 
+                const end = performance.now();
+                const latency = Math.round(end - start);
+                document.getElementById('latency').innerText = `${latency} ms`;
+
+                const response = await fetch('http://ip-api.com/json/?fields=status,message,country,city,isp,query,lat,lon,timezone');
+                const data = await response.json();
+
+                if(data.status === 'success') {
+                    document.getElementById('ipAddress').innerText = data.query;
+                    document.getElementById('ispName').innerText = data.isp;
+                    document.getElementById('location').innerText = `${data.city}, ${data.country}`;
+                    document.getElementById('statusDot').classList.remove('bg-red-500');
+                    document.getElementById('statusDot').classList.add('bg-emerald-500', 'animate-pulse');
+                    document.getElementById('ipAddress').classList.remove('animate-pulse');
+                    assessRisk(data.isp, latency);
+                }
+
+                // Fingerprints
+                document.getElementById('osPlatform').innerText = navigator.platform;
+                document.getElementById('screenRes').innerText = `${window.screen.width}x${window.screen.height}`;
+                document.getElementById('hardwareConc').innerText = (navigator.hardwareConcurrency || '?') + " Cores";
+                document.getElementById('cookiesStatus').innerText = navigator.cookieEnabled ? "Enabled" : "Disabled";
+                document.getElementById('uaString').innerText = navigator.userAgent;
+                document.getElementById('langString').innerText = navigator.language;
+                document.getElementById('dntStatus').innerText = navigator.doNotTrack === "1" ? "Active" : "Inactive";
+
+                // LOCAL NETWORK SCAN
+                document.getElementById('localScanStatus').innerText = "Running ARP scan via backend...";
+                document.getElementById('localDevicesList').innerHTML = `<div class="text-center text-blue-400 text-sm py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Scanning subnet...</div>`;
+                
+                try {
+                    const localResponse = await fetch('http://127.0.0.1:5000/scan');
+                    const localData = await localResponse.json();
+
+                    if(localData.status === 'success') {
+                        document.getElementById('localScanStatus').innerText = `Found ${localData.devices_found} devices on subnet ${localData.scan_target}`;
+                        const listContainer = document.getElementById('localDevicesList');
+                        listContainer.innerHTML = ''; 
+
+                        localData.clients.forEach(device => {
+                            const row = `
+                                <div class="device-row grid grid-cols-12 px-4 py-3 items-center bg-slate-800/30 border border-slate-700/50 rounded hover:bg-slate-700/30 transition-colors">
+                                    <div class="col-span-4 flex flex-col overflow-hidden">
+                                        <span class="font-bold text-white text-sm truncate" title="${device.hostname}">${device.hostname}</span>
+                                        <span class="font-mono text-xs text-blue-400">${device.ip}</span>
+                                    </div>
+                                    <div class="col-span-5 font-mono text-xs text-slate-400">${device.mac}</div>
+                                    <div class="col-span-3 flex flex-col items-end gap-2">
+                                        <div class="flex items-center">
+                                            <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider">Active</span>
+                                            <button onclick="openPortScan('${device.ip}')" class="ml-2 bg-blue-600/20 border border-blue-500/50 text-blue-400 hover:bg-blue-600 hover:text-white px-2 py-1 rounded text-[10px] uppercase font-bold transition-all"><i class="fa-solid fa-crosshairs"></i> SCAN</button>
+                                        </div>
+                                        <span class="${device.vendor.includes('Hidden') ? 'text-red-400 font-bold' : 'text-slate-500'} text-[10px] text-right">${device.vendor}</span>
+                                    </div>
+                                </div>
+                            `;
+                            listContainer.insertAdjacentHTML('beforeend', row);
+                        });
+                    }
+                } catch (backendError) {
+                    console.warn("Python Backend not reached:", backendError);
+                    document.getElementById('localScanStatus').innerText = "Backend Offline";
+                    document.getElementById('localDevicesList').innerHTML = `
+                        <div class="text-center text-red-400 text-sm py-4 border border-red-500/20 bg-red-500/5 rounded">
+                            <i class="fa-solid fa-triangle-exclamation mr-2"></i>
+                            Could not connect to Python Server.<br>
+                            Ensure <b>app.py</b> is running on port 5000.
+                        </div>`;
+                }
+
+                document.getElementById('exportBtn').classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('ipAddress').innerText = "Connection Failed";
+            } finally {
+                btn.innerHTML = originalText;
+            }
+        }
+
+        const modal = document.getElementById('portScanModal');
+        const modalTerminal = document.getElementById('modalTerminal');
+
+        function openModal() {
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.querySelector('.modal-content').classList.remove('scale-95');
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.querySelector('.modal-content').classList.add('scale-95');
+        }
+
+        async function openPortScan(ip) {
+            document.getElementById('modalTargetIp').innerText = ip;
+            modalTerminal.innerHTML = `<div class="text-slate-500">> Engaging Socket connection to <span class="text-white">${ip}</span>...</div>
+                                       <div class="text-yellow-500 animate-pulse">> Scanning common ports...</div>`;
+            openModal();
+
+            try {
+                const response = await fetch(`http://127.0.0.1:5000/scan_ports/${ip}`);
+                const data = await response.json();
+
+                modalTerminal.innerHTML = ''; 
+
+                if (data.status === "success" && data.open_ports.length > 0) {
+                    modalTerminal.innerHTML += `<div class="text-emerald-400 mb-2">> Scan Complete. Open ports detected:</div>`;
+                    data.open_ports.forEach(p => {
+                        modalTerminal.innerHTML += `
+                            <div class="flex justify-between items-center text-red-400 bg-red-500/10 px-2 py-1 rounded">
+                                <span>PORT ${p.port}</span>
+                                <span class="text-white">[${p.service}]</span>
+                                <span>OPEN</span>
+                            </div>
+                        `;
+                    });
+                } else if (data.status === "success") {
+                    modalTerminal.innerHTML += `<div class="text-emerald-500">> Scan Complete. All common ports are CLOSED. Target is secure.</div>`;
+                }
+            } catch (error) {
+                modalTerminal.innerHTML += `<div class="text-red-500">> ERROR: Connection to Python backend severed.</div>`;
+            }
+        }
+
+        function assessRisk(ispName, latency) {
+            const isVpn = ispName.toLowerCase().includes("vpn") || ispName.toLowerCase().includes("hosting") || ispName.toLowerCase().includes("cloud");
+            const riskBar = document.getElementById('riskBar');
+            const riskLevel = document.getElementById('riskLevel');
+            const riskText = document.getElementById('riskText');
+
+            if (isVpn) {
+                riskBar.style.width = "95%";
+                riskBar.className = "h-full bg-emerald-500 progress-fill";
+                riskLevel.innerText = "A";
+                riskLevel.className = "text-4xl font-bold text-emerald-500";
+                riskText.innerText = "Identity Masked. Good OpSec.";
+            } else {
+                riskBar.style.width = "30%";
+                riskBar.className = "h-full bg-red-500 progress-fill";
+                riskLevel.innerText = "F";
+                riskLevel.className = "text-4xl font-bold text-red-500";
+                riskText.innerText = "Direct ISP Connection Detected.";
+            }
+        }
+
+        function analyzePassword() {
+            const password = document.getElementById('passInput').value;
+            const bitsDisplay = document.getElementById('bitsDisplay');
+            const timeDisplay = document.getElementById('crackTimeDisplay');
+            const bar = document.getElementById('strengthBar');
+            const verdict = document.getElementById('strengthVerdict');
+
+            if(password.length === 0) { bitsDisplay.innerText = "0"; bar.style.width = "0%"; return; }
+
+            let pool = 0;
+            if (/[a-z]/.test(password)) pool += 26;
+            if (/[A-Z]/.test(password)) pool += 26;
+            if (/[0-9]/.test(password)) pool += 10;
+            if (/[^a-zA-Z0-9]/.test(password)) pool += 32;
+
+            const entropy = Math.floor(password.length * Math.log2(pool));
+            bitsDisplay.innerText = entropy;
+
+            if (entropy < 40) {
+                bar.style.width = "20%"; bar.className = "h-full bg-red-500 rounded-full transition-all";
+                verdict.innerText = "Very Weak"; verdict.className = "text-center text-sm font-bold text-red-500";
+                timeDisplay.innerText = "Seconds";
+            } else if (entropy < 80) {
+                bar.style.width = "60%"; bar.className = "h-full bg-yellow-500 rounded-full transition-all";
+                verdict.innerText = "Moderate"; verdict.className = "text-center text-sm font-bold text-yellow-500";
+                timeDisplay.innerText = "Days/Weeks";
+            } else {
+                bar.style.width = "100%"; bar.className = "h-full bg-emerald-500 rounded-full transition-all";
+                verdict.innerText = "Strong"; verdict.className = "text-center text-sm font-bold text-emerald-500";
+                timeDisplay.innerText = "Centuries";
+            }
+        }
+
+        // ==========================================
+        // 🕵️‍♂️ WEBRTC IP LEAK TEST LOGIC
+        // ==========================================
+        function checkWebRTCLeak() {
+            const btn = document.getElementById('webrtcBtn');
+            const resultsDiv = document.getElementById('webrtcResults');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> TESTING...`;
+            resultsDiv.classList.remove('hidden');
+            resultsDiv.innerHTML = `<div class="text-slate-400 text-sm animate-pulse font-mono"><i class="fa-solid fa-satellite-dish fa-spin mr-2"></i> Opening RTCPeerConnection to scan ICE candidates...</div>`;
+
+            // Setup RTC Peer Connection
+            const rtcPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+
+            if (!rtcPeerConnection) {
+                resultsDiv.innerHTML = `<div class="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm font-bold flex items-center"><i class="fa-solid fa-shield-halved text-2xl mr-3"></i> <div>SECURE.<br><span class="text-xs font-normal">WebRTC is completely disabled in your browser.</span></div></div>`;
+                btn.innerHTML = originalText;
+                return;
+            }
+
+            // Using public Google STUN server to provoke IP leak
+            const rtc = new rtcPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+            rtc.createDataChannel("leak_test");
+
+            const ips = new Set();
+
+            rtc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const candidateStr = event.candidate.candidate;
+                    // Regex to extract IPv4 and IPv6
+                    const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/g;
+                    const match = candidateStr.match(ipRegex);
+                    if (match) {
+                        ips.add(match[0]);
+                    }
+                }
+            };
+
+            rtc.createOffer().then(offer => rtc.setLocalDescription(offer)).catch(e => console.warn("RTC Offer Error:", e));
+
+            // Wait 3 seconds to gather all candidates from network interfaces
+            setTimeout(() => {
+                const ipArray = Array.from(ips);
+                let html = '';
+
+                if (ipArray.length === 0) {
+                    html = `
+                        <div class="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-sm font-bold flex items-center">
+                            <i class="fa-solid fa-shield-halved text-2xl mr-3"></i>
+                            <div>NO LEAKS DETECTED.<br><span class="text-xs font-normal text-emerald-500/80">Your browser is masking your IP via mDNS or WebRTC is effectively blocked.</span></div>
+                        </div>`;
+                } else {
+                    html = `
+                        <div class="text-amber-400 text-sm font-bold mb-3 flex items-center border-b border-amber-500/20 pb-2">
+                            <i class="fa-solid fa-triangle-exclamation text-xl mr-2 animate-pulse"></i>
+                            WARNING: IP addresses leaked via WebRTC!
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">`;
+
+                    ipArray.forEach(ip => {
+                        let type = "Public/External IP";
+                        // Basic regex check for standard local subnets (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+                        if (ip.match(/^(192\.168\.|169\.254\.|10\.|172\.(1[6-9]|2\d|3[0-1]))/)) {
+                            type = "Local/Internal IP";
+                        }
+                        html += `
+                            <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg flex justify-between items-center font-mono">
+                                <span class="text-amber-300 font-bold">${ip}</span>
+                                <span class="text-[10px] text-amber-500/70 uppercase font-bold bg-amber-500/10 px-2 py-1 rounded">${type}</span>
+                            </div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                resultsDiv.innerHTML = html;
+                btn.innerHTML = originalText;
+
+                rtc.close();
+            }, 3000);
+        }
+
+        // ==========================================
+        // 🎯 TARGET DOMAIN RECON LOGIC
+        // ==========================================
+        async function runDNSRecon() {
+            const domain = document.getElementById('targetDomain').value.trim();
+            const resultsDiv = document.getElementById('dnsResults');
+            const btn = document.getElementById('dnsBtn');
+            const originalText = btn.innerHTML;
+
+            // Basic regex to ensure it looks like a domain name
+            if(!domain || !domain.includes('.')) {
+                alert("Please enter a valid domain name (e.g., google.com).");
+                return;
+            }
+
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> SCANNING...`;
+            resultsDiv.classList.remove('hidden');
+            resultsDiv.innerHTML = `<div class="text-slate-400 text-sm animate-pulse font-mono"><i class="fa-solid fa-satellite-dish fa-spin mr-2"></i> Interrogating global DNS servers for ${domain}...</div>`;
+
+            try {
+                const response = await fetch(`http://127.0.0.1:5000/dns_recon/${domain}`);
+                const data = await response.json();
+
+                if (data.status === "error") {
+                    resultsDiv.innerHTML = `<div class="p-3 border border-red-500/30 bg-red-500/10 rounded-lg text-red-500 text-sm font-mono"><i class="fa-solid fa-circle-xmark mr-2"></i> ERROR: ${data.message}</div>`;
+                    return;
+                }
+
+                let html = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+                
+                // Helper function to render UI cards for each record type
+                const renderRecord = (title, items, icon, color) => {
+                    if (items.length === 0) return '';
+                    let out = `<div class="bg-slate-800/40 border border-slate-700 p-4 rounded-lg">
+                                <h4 class="text-${color}-400 text-xs font-bold mb-2 uppercase border-b border-${color}-500/20 pb-1"><i class="${icon} mr-2"></i>${title}</h4>
+                                <ul class="text-slate-300 font-mono text-[11px] space-y-1">`;
+                    items.forEach(item => out += `<li class="break-words border-l-2 border-${color}-500/50 pl-2 py-1">${item}</li>`);
+                    out += `</ul></div>`;
+                    return out;
+                };
+
+                html += renderRecord('A Records (IPv4)', data.records.A, 'fa-solid fa-server', 'blue');
+                html += renderRecord('AAAA Records (IPv6)', data.records.AAAA, 'fa-solid fa-network-wired', 'indigo');
+                html += renderRecord('MX Records (Mail Exchange)', data.records.MX, 'fa-solid fa-envelope', 'emerald');
+                html += renderRecord('NS Records (Name Servers)', data.records.NS, 'fa-solid fa-globe', 'purple');
+                html += renderRecord('TXT Records (Verification/SPF)', data.records.TXT, 'fa-solid fa-file-code', 'amber');
+
+                html += `</div>`;
+                
+                if(html === `<div class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>`) {
+                     resultsDiv.innerHTML = `<div class="p-3 border border-yellow-500/30 bg-yellow-500/10 rounded-lg text-yellow-500 text-sm font-mono"><i class="fa-solid fa-triangle-exclamation mr-2"></i> No public DNS records found for ${domain}.</div>`;
+                } else {
+                     resultsDiv.innerHTML = html;
+                }
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="p-3 border border-red-500/30 bg-red-500/10 rounded-lg text-red-500 text-sm font-mono"><i class="fa-solid fa-circle-xmark mr-2"></i> ERROR: Python Backend offline. Ensure app.py is running.</div>`;
+            } finally {
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // ==========================================
+        // 📄 REPORT EXPORT LOGIC
+        // ==========================================
+        function downloadReport() {
+            const date = new Date().toLocaleString();
+            const ip = document.getElementById('ipAddress').innerText;
+            const isp = document.getElementById('ispName').innerText;
+            const loc = document.getElementById('location').innerText;
+            const risk = document.getElementById('riskLevel').innerText;
+            const os = document.getElementById('osPlatform').innerText;
+            
+            let report = `====================================================\n`;
+            report += `           NET-SENTRY v3.0 SECURITY AUDIT\n`;
+            report += `====================================================\n`;
+            report += `Date of Audit: ${date}\n\n`;
+            
+            report += `[1] PUBLIC IDENTITY LOGS\n`;
+            report += `----------------------------------------------------\n`;
+            report += `Target IP   : ${ip}\n`;
+            report += `ISP / Org   : ${isp}\n`;
+            report += `Location    : ${loc}\n`;
+            report += `OpSec Risk  : Grade ${risk}\n\n`;
+            
+            report += `[2] DEVICE FINGERPRINT\n`;
+            report += `----------------------------------------------------\n`;
+            report += `Platform    : ${os}\n`;
+            report += `Resolution  : ${document.getElementById('screenRes').innerText}\n`;
+            report += `User-Agent  : ${document.getElementById('uaString').innerText}\n\n`;
+            
+            report += `[3] LOCAL NETWORK NODES\n`;
+            report += `----------------------------------------------------\n`;
+            
+            const devices = document.querySelectorAll('.device-row');
+            if(devices.length > 0) {
+                devices.forEach((dev, index) => {
+                    const cleanText = dev.innerText.replace(/\n+/g, ' | ').trim();
+                    report += `Node ${index + 1}: ${cleanText}\n`;
+                });
+            } else {
+                report += `No network nodes discovered or backend offline.\n`;
+            }
+            
+            report += `\n====================================================\n`;
+            report += `        REPORT GENERATED BY NET-SENTRY SYSTEM\n`;
+            report += `====================================================\n`;
+
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `NetSentry_Audit_${ip}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+
+
+</body>
+</html>
