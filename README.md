@@ -1,4 +1,4 @@
-# Net-Sentry v3.0 🛡️
+# Net-Sentry v1.0 🛡️
 
 Net-Sentry is an enterprise-grade cybersecurity recon toolkit built with a Python backend and a responsive Vanilla JS/Tailwind frontend. It features a tactical ARP network scanner, multi-threaded port scanning, WebRTC IP leak detection, and advanced DNS record sniping. It also generates automated 1-click security audit reports for real-time threat intelligence.
 
